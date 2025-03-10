@@ -1,3 +1,4 @@
+// Package commands contains the commands for the bot
 package commands
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// Comic holds the data for a comic that comes from xkcd
 type Comic struct {
 	Month      string `json:"month"`
 	Num        int    `json:"num"`
@@ -26,16 +28,24 @@ type Comic struct {
 var (
 	commands = []*discordgo.ApplicationCommand{
 		{
-			Name:        "hello",
-			Description: "Says hello world",
-		},
-		{
 			Name:        "list",
 			Description: "lists the saved comics",
 		},
 		{
 			Name:        "save",
 			Description: "saves a comic with the given id",
+		},
+		{
+			Name:        "get",
+			Description: "gets a xkcd comic",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionInteger,
+					Name:        "id",
+					Description: "Id for comic",
+					Required:    true,
+				},
+			},
 		},
 		{
 			Name:        "random",
@@ -48,14 +58,6 @@ var (
 	}
 
 	handlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"hello": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("Hello %s", i.Member.User.Mention()),
-				},
-			})
-		},
 		"latest": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			c := http.Client{}
 			resp, err := c.Get("https://xkcd.com/info.0.json")
@@ -91,8 +93,19 @@ var (
 			})
 		},
 		"get": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			options := i.ApplicationCommandData().Options
+			optionMap := make(
+				map[string]*discordgo.ApplicationCommandInteractionDataOption,
+				len(options),
+			)
+			for _, opt := range options {
+				optionMap[opt.Name] = opt
+			}
+
+			id := optionMap["id"]
+
 			c := http.Client{}
-			resp, err := c.Get(fmt.Sprintf("https://xkcd.com/%d/info.0.json", 24))
+			resp, err := c.Get(fmt.Sprintf("https://xkcd.com/%d/info.0.json", id.IntValue()))
 			if err != nil {
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.ErrCodeGeneralError,
@@ -120,7 +133,7 @@ var (
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("Hello %s", i.Member.User.Mention()),
+					Content: comic.Img,
 				},
 			})
 		},
