@@ -2,9 +2,11 @@
 package commands
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 
 	"github.com/bwmarrin/discordgo"
@@ -27,14 +29,6 @@ type Comic struct {
 
 var (
 	commands = []*discordgo.ApplicationCommand{
-		{
-			Name:        "list",
-			Description: "lists the saved comics",
-		},
-		{
-			Name:        "save",
-			Description: "saves a comic with the given id",
-		},
 		{
 			Name:        "get",
 			Description: "gets a xkcd comic",
@@ -61,6 +55,52 @@ var (
 		"latest": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			c := http.Client{}
 			resp, err := c.Get("https://xkcd.com/info.0.json")
+			if err != nil {
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.ErrCodeGeneralError,
+					Data: &discordgo.InteractionResponseData{
+						Content: fmt.Sprintf("Could not retrieve latest comic: %s", err.Error()),
+					},
+				})
+				return
+			}
+
+			decoder := json.NewDecoder(resp.Body)
+
+			var comic Comic
+			err = decoder.Decode(&comic)
+			if err != nil {
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.ErrCodeGeneralError,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Could not decode comic",
+					},
+				})
+				return
+			}
+
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: comic.Img,
+				},
+			})
+		},
+		"random": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			reader := rand.Reader
+			id, err := rand.Int(reader, big.NewInt(3000))
+			if err != nil {
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.ErrCodeGeneralError,
+					Data: &discordgo.InteractionResponseData{
+						Content: fmt.Sprintf("Failed to generate random id: %s", err.Error()),
+					},
+				})
+				return
+			}
+
+			c := http.Client{}
+			resp, err := c.Get(fmt.Sprintf("https://xkcd.com/%d/info.0.json", id))
 			if err != nil {
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.ErrCodeGeneralError,
@@ -134,14 +174,6 @@ var (
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
 					Content: comic.Img,
-				},
-			})
-		},
-		"save": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("Hello %s", i.Member.User.Mention()),
 				},
 			})
 		},
